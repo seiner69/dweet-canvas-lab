@@ -1,0 +1,878 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A browser lab for running Dweet and p5.js sketches, exporting GIFs, and packing source into UTF-16.">
+  <link rel="icon" href="data:,">
+  <title>Dweet Canvas Lab</title>
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0d1418;
+      color: #dfeaf0;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(420px, 1fr) 520px;
+      gap: 18px;
+      padding: 18px;
+      background: #0d1418;
+      overflow: hidden;
+    }
+
+    .stage {
+      display: grid;
+      place-items: center;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    canvas, #p5Mount canvas {
+      width: 100%;
+      max-height: calc(100vh - 36px);
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border: 1px solid #263943;
+      display: block;
+    }
+
+    #p5Mount {
+      display: none;
+      place-items: center;
+      min-width: 0;
+    }
+
+    aside {
+      display: grid;
+      grid-template-rows: auto minmax(220px, 1.15fr) minmax(190px, .85fr) auto minmax(58px, auto);
+      gap: 8px;
+      min-height: 0;
+      height: calc(100vh - 36px);
+      overflow: hidden;
+    }
+
+    .bar, .panel-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .panel-bar {
+      justify-content: space-between;
+    }
+
+    .panel-title {
+      color: #dcebf1;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    button {
+      border: 0;
+      background: #1677ff;
+      color: white;
+      height: 32px;
+      padding: 0 10px;
+      border-radius: 6px;
+      font: inherit;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    button.secondary { background: #273943; }
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: #aebec7;
+      font-size: 13px;
+    }
+
+    input[type="number"], input[type="color"] {
+      width: 62px;
+      height: 28px;
+      border: 1px solid #293b45;
+      border-radius: 6px;
+      background: #151d21;
+      color: #eaf4f8;
+      padding: 0 8px;
+      font: inherit;
+    }
+
+    input[type="color"] {
+      width: 38px;
+      padding: 2px;
+      cursor: pointer;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 0;
+      resize: none;
+      border: 1px solid #293b45;
+      border-radius: 6px;
+      padding: 10px;
+      background: #151d21;
+      color: #eaf4f8;
+      font: 14px/1.38 Consolas, "Cascadia Mono", monospace;
+      outline: none;
+    }
+
+    .tool-panel {
+      display: grid;
+      grid-template-rows: auto minmax(78px, 1fr) auto minmax(48px, .7fr);
+      gap: 6px;
+      padding: 8px;
+      border: 1px solid #263943;
+      border-radius: 8px;
+      background: #10181d;
+      min-height: 0;
+    }
+
+    .short-textarea {
+      min-height: 0;
+      max-height: none;
+    }
+
+    .mini-stat {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      color: #aebec7;
+      font: 13px/1.4 Consolas, "Cascadia Mono", monospace;
+    }
+
+    .pill {
+      border: 1px solid #293b45;
+      border-radius: 6px;
+      padding: 4px 7px;
+      background: #151d21;
+    }
+
+    .ok { color: #62e9be; }
+    .bad { color: #ff9a9a; }
+
+    textarea:focus { border-color: #1677ff; }
+
+    .stat, pre {
+      margin: 0;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: #151d21;
+      color: #b7c9d2;
+      font: 12px/1.35 Consolas, "Cascadia Mono", monospace;
+      white-space: pre-wrap;
+      min-height: 0;
+      overflow: auto;
+    }
+
+    #error {
+      max-height: 88px;
+    }
+
+    .error { color: #ff9a9a; }
+
+    @media (max-width: 980px) {
+      body {
+        height: auto;
+        min-height: 100vh;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+        padding: 12px;
+        overflow: auto;
+      }
+
+      canvas { max-height: none; }
+
+      aside {
+        height: auto;
+        min-height: 680px;
+        overflow: visible;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <canvas id="c" width="1920" height="1080"></canvas>
+    <div id="p5Mount"></div>
+  </main>
+
+  <aside>
+    <div class="bar">
+      <button id="run">运行</button>
+      <button id="pause" class="secondary">暂停</button>
+      <button id="reset" class="secondary">重置时间</button>
+      <button id="exportGif" class="secondary">导出 GIF</button>
+      <label><input id="autoclear" type="checkbox"> 自动清屏</label>
+      <label><input id="fillBg" type="checkbox" checked> 背景</label>
+      <label>颜色 <input id="bgColor" type="color" value="#000000"></label>
+      <label><input id="autoPeriod" type="checkbox" checked> 自动周期</label>
+      <label><input id="warpPeriod" type="checkbox" checked> 变形时间</label>
+      <label>帧数 <input id="gifFrames" type="number" min="1" max="600" value="180"></label>
+      <label>延迟 <input id="gifDelay" type="number" min="10" max="1000" value="33"></label>
+      <label>宽度 <input id="gifWidth" type="number" min="160" max="1920" value="640"></label>
+    </div>
+    <textarea id="code" spellcheck="false">$=[]
+draw=_=>{$[0]??createCanvas(540,540).background(0);$[600]?$=$.map(v=>[v.add(sin(v.y*9*v.x)/80,cos(v.x**3*15)/80,.01),stroke(v.z*250).point(v.copy().mult(100).add(270,220))][0]).filter(e=>e.z<1):$.push(...[...Array(40)].map(_=>p5.Vector.random3D()))}</textarea>
+    <section class="tool-panel">
+      <div class="panel-bar">
+        <span class="panel-title">UTF-16 转换</span>
+        <div class="bar">
+          <button id="packUtf16" class="secondary">压缩</button>
+          <button id="decodeUtf16" class="secondary">反解</button>
+          <button id="copyUtf16" class="secondary">复制</button>
+          <button id="applyDecoded" class="secondary">套用源码</button>
+        </div>
+      </div>
+      <textarea id="utf16Output" class="short-textarea" spellcheck="false" placeholder="这里会生成 UTF-16 eval 代码；也可以粘贴压缩代码后点击反解"></textarea>
+      <div class="mini-stat" id="utf16Stat"></div>
+      <pre id="utf16Decoded"></pre>
+    </section>
+    <div class="stat" id="stat"></div>
+    <pre id="error"></pre>
+  </aside>
+
+  <script>
+    const c = document.getElementById("c");
+    const x = c.getContext("2d");
+    const p5Mount = document.getElementById("p5Mount");
+    const codeEl = document.getElementById("code");
+    const statEl = document.getElementById("stat");
+    const errorEl = document.getElementById("error");
+    const runBtn = document.getElementById("run");
+    const pauseBtn = document.getElementById("pause");
+    const resetBtn = document.getElementById("reset");
+    const exportGifBtn = document.getElementById("exportGif");
+    const autoPeriod = document.getElementById("autoPeriod");
+    const warpPeriod = document.getElementById("warpPeriod");
+    const gifFrames = document.getElementById("gifFrames");
+    const gifDelay = document.getElementById("gifDelay");
+    const gifWidth = document.getElementById("gifWidth");
+    const autoclear = document.getElementById("autoclear");
+    const fillBg = document.getElementById("fillBg");
+    const bgColor = document.getElementById("bgColor");
+    const packUtf16Btn = document.getElementById("packUtf16");
+    const decodeUtf16Btn = document.getElementById("decodeUtf16");
+    const copyUtf16Btn = document.getElementById("copyUtf16");
+    const applyDecodedBtn = document.getElementById("applyDecoded");
+    const utf16Output = document.getElementById("utf16Output");
+    const utf16Stat = document.getElementById("utf16Stat");
+    const utf16Decoded = document.getElementById("utf16Decoded");
+
+    const S = Math.sin;
+    const C = Math.cos;
+    const T = Math.tan;
+    const R = (r, g, b, a = 1) => `rgba(${r | 0},${g | 0},${b | 0},${a})`;
+
+    let runner;
+    let p5Instance;
+    let running = true;
+    let start = performance.now();
+    let lastCode = "";
+
+    function setCanvasSize(canvas, width, height) {
+      canvas.width = width;
+      canvas.height = height;
+      canvas.style.aspectRatio = `${width} / ${height}`;
+    }
+
+    function fillCanvasBackground(context, canvas) {
+      if (!fillBg.checked) return;
+      context.save();
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.globalAlpha = 1;
+      context.globalCompositeOperation = "source-over";
+      context.fillStyle = bgColor.value || "#000000";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.restore();
+    }
+
+    function withBackgroundReset(canvas, context) {
+      return new Proxy(canvas, {
+        set(target, prop, value) {
+          target[prop] = value;
+          if (prop === "width" || prop === "height") fillCanvasBackground(context, target);
+          return true;
+        },
+        get(target, prop) {
+          const value = target[prop];
+          return typeof value === "function" ? value.bind(target) : value;
+        }
+      });
+    }
+
+    function p5Color(args) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let a = 255;
+      if (args.length === 1) {
+        r = g = b = args[0];
+      } else if (args.length === 2) {
+        r = g = b = args[0];
+        a = args[1];
+      } else {
+        [r, g, b] = args;
+        a = args.length > 3 ? args[3] : 255;
+      }
+      return `rgba(${r | 0},${g | 0},${b | 0},${Math.max(0, Math.min(255, a)) / 255})`;
+    }
+
+    function makeP5Env(canvas, context, getMillis) {
+      const env = {
+        c: canvas,
+        x: context,
+        drawingContext: context,
+        setup: null,
+        draw: null,
+        t: 0,
+        frameCount: 0,
+        width: canvas.width,
+        height: canvas.height,
+        windowWidth: innerWidth,
+        windowHeight: innerHeight,
+        PI: Math.PI,
+        TAU: Math.PI * 2,
+        TWO_PI: Math.PI * 2,
+        HALF_PI: Math.PI / 2,
+        S,
+        C,
+        T,
+        R,
+        Math,
+        sin: Math.sin,
+        cos: Math.cos,
+        tan: Math.tan,
+        atan: Math.atan,
+        atan2: Math.atan2,
+        sqrt: Math.sqrt,
+        abs: Math.abs,
+        min: Math.min,
+        max: Math.max,
+        floor: Math.floor,
+        ceil: Math.ceil,
+        round: Math.round,
+        random: Math.random,
+        mag: (...values) => Math.hypot(...values),
+        millis: () => getMillis(),
+        createCanvas: (width, height = width) => {
+          setCanvasSize(canvas, width, height);
+          env.width = width;
+          env.height = height;
+          return canvas;
+        },
+        background: (...args) => {
+          context.save();
+          context.setTransform(1, 0, 0, 1, 0, 0);
+          context.fillStyle = p5Color(args);
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.restore();
+          return env;
+        },
+        stroke: (...args) => {
+          context.strokeStyle = p5Color(args);
+          context.fillStyle = context.strokeStyle;
+          return env;
+        },
+        fill: (...args) => {
+          context.fillStyle = p5Color(args);
+          return env;
+        },
+        noStroke: () => env,
+        noFill: () => env,
+        strokeWeight: weight => {
+          context.lineWidth = weight;
+          return env;
+        },
+        point: (px, py) => {
+          const size = Math.max(1, context.lineWidth || 1);
+          context.fillRect(px, py, size, size);
+          return env;
+        },
+        circle: (px, py, diameter) => {
+          context.beginPath();
+          context.arc(px, py, diameter / 2, 0, Math.PI * 2);
+          context.fill();
+          return env;
+        },
+        ellipse: (px, py, width, height = width) => {
+          context.beginPath();
+          context.ellipse(px, py, width / 2, height / 2, 0, 0, Math.PI * 2);
+          context.fill();
+          return env;
+        },
+        line: (x1, y1, x2, y2) => {
+          context.beginPath();
+          context.moveTo(x1, y1);
+          context.lineTo(x2, y2);
+          context.stroke();
+          return env;
+        }
+      };
+      return env;
+    }
+
+    function isP5Code(code) {
+      return /\bfunction\s+setup\b|\bfunction\s+draw\b|\bsetup\s*=|\bdraw\s*=|\bcreateCanvas\s*\(|\bbackground\s*\(|\bpoint\s*\(|\bdrawingContext\b|\bmillis\s*\(/.test(code);
+    }
+
+    function createRunner(canvas, context, code, getMillis) {
+      if (p5Instance) {
+        p5Instance.remove();
+        p5Instance = null;
+      }
+
+      if (isP5Code(code) && window.p5) {
+        canvas.style.display = "none";
+        p5Mount.style.display = "grid";
+        p5Mount.replaceChildren();
+        p5Instance = new p5(p => {
+          p.S = Math.sin;
+          p.C = Math.cos;
+          p.T = Math.tan;
+          p.R = R;
+          p.setup = null;
+          p.draw = null;
+          const realCreateCanvas = p.createCanvas.bind(p);
+          p.createCanvas = (width, height = width, ...rest) => {
+            const renderer = realCreateCanvas(width, height, ...rest);
+            const canvasEl = renderer.canvas;
+            canvasEl.style.width = "100%";
+            canvasEl.style.maxHeight = "calc(100vh - 36px)";
+            canvasEl.style.aspectRatio = `${width} / ${height}`;
+            canvasEl.style.height = "auto";
+            return p;
+          };
+          const hooks = new Function("p", `with(p){${code}\n;return {setup:typeof setup=="function"?setup:null,draw:typeof draw=="function"?draw:null}}`)(p);
+          if (hooks.setup) p.setup = hooks.setup;
+          if (hooks.draw) p.draw = hooks.draw;
+        }, p5Mount);
+        return {
+          mode: "p5.js",
+          run() {}
+        };
+      }
+
+      canvas.style.display = "block";
+      p5Mount.style.display = "none";
+      p5Mount.replaceChildren();
+      if (canvas.width !== 1920 || canvas.height !== 1080) setCanvasSize(canvas, 1920, 1080);
+      const fn = new Function("c", "x", "t", "S", "C", "T", "R", code);
+      const codeCanvas = withBackgroundReset(canvas, context);
+      return {
+        mode: "dwitter",
+        run(t) {
+          fn(codeCanvas, context, t, S, C, T, R);
+        }
+      };
+    }
+
+    function compile() {
+      const code = codeEl.value.trim();
+      if (code === lastCode && runner) return;
+      lastCode = code;
+      runner = createRunner(c, x, code, () => performance.now() - start);
+      errorEl.textContent = "";
+      errorEl.className = "";
+    }
+
+    function frame(now) {
+      if (running) {
+        const t = (now - start) / 1000;
+        try {
+          compile();
+          x.setTransform(1, 0, 0, 1, 0, 0);
+          if (autoclear.checked) x.clearRect(0, 0, c.width, c.height);
+          if (autoclear.checked || fillBg.checked) fillCanvasBackground(x, c);
+          runner.run(t);
+          statEl.textContent = `${[...codeEl.value.trim()].length} 字符 | ${runner.mode} | t=${t.toFixed(2)} | ${c.width}x${c.height}`;
+        } catch (err) {
+          errorEl.textContent = err.stack || err.message;
+          errorEl.className = "error";
+          running = false;
+          pauseBtn.textContent = "继续";
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+
+    runBtn.onclick = () => {
+      lastCode = "";
+      running = true;
+      if (p5Instance) p5Instance.loop();
+      pauseBtn.textContent = "暂停";
+    };
+
+    pauseBtn.onclick = () => {
+      running = !running;
+      if (p5Instance) {
+        if (running) p5Instance.loop();
+        else p5Instance.noLoop();
+      }
+      pauseBtn.textContent = running ? "暂停" : "继续";
+    };
+
+    resetBtn.onclick = () => {
+      start = performance.now();
+    };
+
+    function charCount(text) {
+      return [...text].length;
+    }
+
+    function packUtf16Source(source) {
+      let padded = source;
+      if (padded.length % 2) padded += " ";
+      let packed = "";
+      for (let i = 0; i < padded.length; i += 2) {
+        packed += String.fromCharCode(padded.charCodeAt(i) * 256 + padded.charCodeAt(i + 1));
+      }
+      return packed;
+    }
+
+    function wrapPackedUtf16(packed) {
+      return `eval(unescape(escape\`${packed}\`.replace(/u([^D].)/g,'$1%')))`;
+    }
+
+    function updateUtf16Stat(source, packed, wrapped, decoded) {
+      const n = charCount(wrapped);
+      utf16Stat.innerHTML = [
+        `<span class="pill">源码 ${charCount(source)}</span>`,
+        `<span class="pill">打包 ${charCount(packed)}</span>`,
+        `<span class="pill">eval ${n}</span>`,
+        `<span class="pill ${n <= 140 ? "ok" : "bad"}">${n <= 140 ? "合格 <= 140" : "超出 " + (n - 140)}</span>`,
+        `<span class="pill ${decoded.trimEnd() === source ? "ok" : "bad"}">${decoded.trimEnd() === source ? "反解一致" : "反解不一致"}</span>`
+      ].join("");
+    }
+
+    function packCurrentCode() {
+      const source = codeEl.value.trim();
+      const packed = packUtf16Source(source);
+      const wrapped = wrapPackedUtf16(packed);
+      const decoded = decodePackedCode(wrapped);
+      utf16Output.value = wrapped;
+      utf16Decoded.textContent = decoded;
+      updateUtf16Stat(source, packed, wrapped, decoded);
+    }
+
+    function decodeUtf16Output() {
+      const decoded = decodePackedCode(utf16Output.value.trim());
+      utf16Decoded.textContent = decoded;
+      const packedMatch = utf16Output.value.match(/escape`([\s\S]*?)`\.replace/);
+      const packed = packedMatch ? packedMatch[1] : "";
+      updateUtf16Stat(decoded.trimEnd(), packed, utf16Output.value.trim(), decoded);
+      return decoded;
+    }
+
+    packUtf16Btn.onclick = packCurrentCode;
+
+    decodeUtf16Btn.onclick = () => {
+      decodeUtf16Output();
+    };
+
+    copyUtf16Btn.onclick = async () => {
+      utf16Output.select();
+      try {
+        await navigator.clipboard.writeText(utf16Output.value);
+        utf16Decoded.textContent = "已复制 UTF-16 输出";
+      } catch {
+        document.execCommand("copy");
+        utf16Decoded.textContent = "已复制 UTF-16 输出";
+      }
+    };
+
+    applyDecodedBtn.onclick = () => {
+      const decoded = decodeUtf16Output().trimEnd();
+      if (!decoded) return;
+      codeEl.value = decoded;
+      lastCode = "";
+      utf16Decoded.textContent = "已套用到运行区\n\n" + decoded;
+    };
+
+    codeEl.addEventListener("input", packCurrentCode);
+
+    function downloadBlob(blob, name) {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+
+    function gcd(a, b) {
+      while (b) [a, b] = [b, a % b];
+      return Math.abs(a);
+    }
+
+    function lcm(a, b) {
+      return Math.abs(a * b) / gcd(a, b);
+    }
+
+    function rationalize(n, maxDen = 240) {
+      let bestNum = 1;
+      let bestDen = 1;
+      let bestErr = Infinity;
+      for (let den = 1; den <= maxDen; den++) {
+        const num = Math.round(n * den);
+        const err = Math.abs(n - num / den);
+        if (err < bestErr) {
+          bestNum = num;
+          bestDen = den;
+          bestErr = err;
+        }
+      }
+      const g = gcd(Math.abs(bestNum), bestDen) || 1;
+      return [bestNum / g, bestDen / g];
+    }
+
+    function decodePackedCode(code) {
+      const match = code.match(/escape`([\s\S]*?)`\.replace\(\/u\(\[\^D\]\.\)\/g,\s*['"]\$1%['"]\)/);
+      if (!match) return code;
+      try {
+        return unescape(escape(match[1]).replace(/u([^D].)/g, "$1%")).trimEnd();
+      } catch {
+        return code;
+      }
+    }
+
+    function collectTimeSpeeds(code) {
+      const source = decodePackedCode(code);
+      const aliases = { t: 1 };
+      let match;
+      const aliasRules = [
+        /\b([A-Z])\s*=\s*t\s*\*\s*([.\d]+)/g,
+        /\b([A-Z])\s*=\s*([.\d]+)\s*\*\s*t/g,
+        /\b([A-Z])\s*=\s*t\s*\/\s*([.\d]+)/g,
+        /\b([A-Z])\s*=\s*t\b/g
+      ];
+      while ((match = aliasRules[0].exec(source))) aliases[match[1]] = +match[2] || 1;
+      while ((match = aliasRules[1].exec(source))) aliases[match[1]] = +match[2] || 1;
+      while ((match = aliasRules[2].exec(source))) aliases[match[1]] = 1 / (+match[2] || 1);
+      while ((match = aliasRules[3].exec(source))) aliases[match[1]] ??= 1;
+
+      const speeds = [];
+      for (const [token, base] of Object.entries(aliases)) {
+        const esc = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const before = `(?<![A-Za-z0-9_$])`;
+        const after = `(?![A-Za-z0-9_$])`;
+        for (const rule of [
+          new RegExp(`([.\\d]+)\\s*\\*\\s*${esc}${after}`, "g"),
+          new RegExp(`${before}${esc}\\s*\\*\\s*([.\\d]+)`, "g"),
+          new RegExp(`${before}${esc}\\s*\\/\\s*([.\\d]+)`, "g"),
+          new RegExp(`${before}${esc}${after}`, "g")
+        ]) {
+          while ((match = rule.exec(source))) {
+            const text = match[0];
+            let speed = base;
+            if (text.includes("*")) speed *= +(match[1] || 1);
+            if (text.includes("/")) speed /= +(match[1] || 1);
+            if (Number.isFinite(speed) && Math.abs(speed) > 1e-6) speeds.push(Math.abs(speed));
+          }
+        }
+      }
+      return speeds;
+    }
+
+    function detectModuloPeriod(code) {
+      const source = decodePackedCode(code);
+      const periods = [];
+      let match;
+      const direct = /\bt\s*%\s*([.\d]+)/g;
+      while ((match = direct.exec(source))) {
+        const period = +match[1];
+        if (Number.isFinite(period) && period > 0) periods.push(period);
+      }
+      const alias = /\b[A-Z]\s*=\s*t\s*%\s*([.\d]+)/g;
+      while ((match = alias.exec(source))) {
+        const period = +match[1];
+        if (Number.isFinite(period) && period > 0) periods.push(period);
+      }
+      return periods.length ? Math.min(...periods) : null;
+    }
+
+    function detectLoopPeriod(code) {
+      const moduloPeriod = detectModuloPeriod(code);
+      if (moduloPeriod) return moduloPeriod;
+      const speeds = collectTimeSpeeds(code);
+      if (!speeds.length) return 2 * Math.PI;
+      const rationals = speeds.map(speed => rationalize(speed));
+      const denominator = rationals.reduce((acc, [, den]) => lcm(acc, den), 1);
+      const integers = rationals.map(([num, den]) => Math.abs(num) * denominator / den);
+      const divisor = integers.reduce((acc, value) => gcd(acc, value), integers[0]);
+      const fundamental = divisor / denominator;
+      if (!fundamental || !Number.isFinite(fundamental)) return 2 * Math.PI;
+      return Math.min(120, 2 * Math.PI / fundamental);
+    }
+
+    function chooseGifTiming(period, requestedDelay, maxFrames) {
+      const targetCentis = Math.max(1, Math.round(requestedDelay / 10));
+      let best = null;
+      for (let centis = 1; centis <= 100; centis++) {
+        const frames = Math.max(1, Math.min(maxFrames, Math.round(period * 100 / centis)));
+        const duration = frames * centis / 100;
+        const loopError = Math.abs(duration - period);
+        const delayPenalty = Math.abs(centis - targetCentis) * .002;
+        const score = loopError + delayPenalty;
+        if (!best || score < best.score) best = { frames, centis, duration, loopError, score };
+      }
+      return {
+        frames: best.frames,
+        delay: best.centis * 10,
+        duration: best.duration,
+        loopError: best.loopError
+      };
+    }
+
+    function nextFrame() {
+      return new Promise(resolve => requestAnimationFrame(resolve));
+    }
+
+    function canvasHasVisiblePixels(canvas) {
+      const probe = document.createElement("canvas");
+      const size = 64;
+      probe.width = size;
+      probe.height = size;
+      const px = probe.getContext("2d", { willReadFrequently: true });
+      px.drawImage(canvas, 0, 0, size, size);
+      const data = px.getImageData(0, 0, size, size).data;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] && data[i] + data[i + 1] + data[i + 2] > 18) return true;
+      }
+      return false;
+    }
+
+    async function prepareP5ExportCanvas(code) {
+      if (code !== lastCode || !p5Instance) {
+        lastCode = "";
+        compile();
+      }
+      if (!p5Instance) throw new Error("p5 实例还没有准备好");
+      p5Instance.loop();
+
+      let p5Canvas = null;
+      for (let i = 0; i < 90; i++) {
+        await nextFrame();
+        p5Canvas = p5Mount.querySelector("canvas");
+        statEl.textContent = `预热 p5 画布 ${i + 1}/90`;
+        if (p5Canvas && canvasHasVisiblePixels(p5Canvas)) break;
+      }
+      if (!p5Canvas) throw new Error("p5 画布还没有准备好");
+      return p5Canvas;
+    }
+
+    exportGifBtn.onclick = async () => {
+      const priorRunning = running;
+      running = false;
+      pauseBtn.textContent = "继续";
+      exportGifBtn.disabled = true;
+      errorEl.textContent = "";
+      errorEl.className = "";
+
+      try {
+        const { GIFEncoder, quantize, applyPalette } = await import("https://cdn.jsdelivr.net/npm/gifenc@1.0.3/+esm");
+        let frames = Math.max(1, Math.min(600, gifFrames.valueAsNumber || 180));
+        let delay = Math.max(10, Math.min(1000, gifDelay.valueAsNumber || 33));
+        const outW = Math.max(160, Math.min(1920, gifWidth.valueAsNumber || 640));
+        let outH = Math.round(outW * c.height / c.width);
+        const code = codeEl.value.trim();
+        let sourcePeriod = null;
+        if (autoPeriod.checked) {
+          sourcePeriod = detectLoopPeriod(code);
+          const timing = chooseGifTiming(sourcePeriod, delay, frames);
+          frames = timing.frames;
+          delay = timing.delay;
+        }
+
+        if (isP5Code(code)) {
+          const p5Canvas = await prepareP5ExportCanvas(code);
+          outH = Math.round(outW * p5Canvas.height / p5Canvas.width);
+          const dst = document.createElement("canvas");
+          dst.width = outW;
+          dst.height = outH;
+          const dx = dst.getContext("2d", { willReadFrequently: true });
+          const gif = GIFEncoder();
+
+          for (let frameIndex = 0; frameIndex < frames; frameIndex++) {
+            dx.clearRect(0, 0, outW, outH);
+            dx.drawImage(p5Canvas, 0, 0, outW, outH);
+            const rgba = dx.getImageData(0, 0, outW, outH).data;
+            const palette = quantize(rgba, 256);
+            const indexed = applyPalette(rgba, palette);
+            gif.writeFrame(indexed, outW, outH, { palette, delay });
+            statEl.textContent = `正在导出 p5 GIF ${frameIndex + 1}/${frames} | ${outW}x${outH}`;
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+
+          gif.finish();
+          downloadBlob(new Blob([gif.bytes()], { type: "image/gif" }), `dweet-${Date.now()}.gif`);
+          statEl.textContent = `p5 GIF 已导出 | ${frames} 帧 | ${outW}x${outH} | 延迟 ${delay}ms`;
+          return;
+        }
+
+        const src = document.createElement("canvas");
+        src.width = c.width;
+        src.height = c.height;
+        const sx = src.getContext("2d", { willReadFrequently: true });
+        let exportTimeMs = 0;
+        const renderRunner = createRunner(src, sx, code, () => exportTimeMs);
+        outH = Math.round(outW * src.height / src.width);
+        const dst = document.createElement("canvas");
+        dst.width = outW;
+        dst.height = outH;
+        const dx = dst.getContext("2d", { willReadFrequently: true });
+        const gif = GIFEncoder();
+        const baseT = autoPeriod.checked ? 0 : (performance.now() - start) / 1000;
+        const gifDuration = frames * delay / 1000;
+
+        for (let frameIndex = 0; frameIndex < frames; frameIndex++) {
+          const phase = frameIndex / frames;
+          const tt = sourcePeriod && warpPeriod.checked
+            ? baseT + phase * sourcePeriod
+            : baseT + phase * gifDuration;
+          exportTimeMs = tt * 1000;
+          sx.setTransform(1, 0, 0, 1, 0, 0);
+          if (autoclear.checked || autoPeriod.checked) sx.clearRect(0, 0, src.width, src.height);
+          if (autoclear.checked || autoPeriod.checked || fillBg.checked) fillCanvasBackground(sx, src);
+          renderRunner.run(tt);
+          dx.clearRect(0, 0, outW, outH);
+          dx.drawImage(src, 0, 0, outW, outH);
+          const rgba = dx.getImageData(0, 0, outW, outH).data;
+          const palette = quantize(rgba, 256);
+          const indexed = applyPalette(rgba, palette);
+          gif.writeFrame(indexed, outW, outH, { palette, delay });
+          const loopInfo = sourcePeriod ? ` | 源周期 ${sourcePeriod.toFixed(3)}s -> GIF ${gifDuration.toFixed(3)}s` : "";
+          statEl.textContent = `正在导出 GIF ${frameIndex + 1}/${frames} | ${outW}x${outH}${loopInfo}`;
+          await new Promise(requestAnimationFrame);
+        }
+
+        gif.finish();
+        downloadBlob(new Blob([gif.bytes()], { type: "image/gif" }), `dweet-${Date.now()}.gif`);
+        const loopInfo = sourcePeriod ? ` | 源周期 ${sourcePeriod.toFixed(3)}s -> GIF ${gifDuration.toFixed(3)}s | 延迟 ${delay}ms` : "";
+        statEl.textContent = `GIF 已导出 | ${frames} 帧 | ${outW}x${outH}${loopInfo}`;
+      } catch (err) {
+        errorEl.textContent = err.stack || err.message;
+        errorEl.className = "error";
+      } finally {
+        exportGifBtn.disabled = false;
+        running = priorRunning;
+        if (p5Instance && !priorRunning) p5Instance.noLoop();
+        pauseBtn.textContent = running ? "暂停" : "继续";
+      }
+    };
+
+    packCurrentCode();
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
