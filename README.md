@@ -1,65 +1,65 @@
-# Dweet Canvas Lab
+# Dweet Canvas Lab（生成艺术代码实验台）
 
-Dweet Canvas Lab is a single-page browser workbench for experimenting with compact generative-art snippets. It runs Dwitter-style Canvas code and p5.js sketches, previews animation immediately, exports GIFs, and packs or decodes the UTF-16 form commonly used for character-limited JavaScript experiments.
+Dweet Canvas Lab 是一个单页浏览器工具，用于实验短小的生成艺术代码。它可以运行 Dwitter 风格 Canvas 代码和 p5.js 草图、立即预览动画、导出 GIF，并压缩或反解字符受限 JavaScript 实验常用的 UTF-16 格式。
 
-The interface is in Chinese; code-specific terms such as Dweet, p5.js, GIF, and UTF-16 remain unchanged.
+界面和本文档以中文为主；Dweet、p5.js、GIF、UTF-16 等技术名词保留原文。
 
-## Highlights
+## 主要能力
 
-- Runs Dwitter-compatible snippets with the usual `c`, `x`, `t`, `S`, `C`, `T`, and `R` aliases
-- Detects p5.js-style sketches and switches to a p5 canvas automatically
-- Controls background fill, clearing, playback, time reset, output width, frame count, and delay
-- Estimates animation periods to produce smoother GIF loops
-- Packs source into UTF-16, reports the 140-character budget, verifies round trips, and decodes packed snippets
-- Ships as one HTML file with no build step
+- 运行 Dwitter 兼容代码，提供常用的 `c`、`x`、`t`、`S`、`C`、`T` 和 `R` 别名
+- 自动识别 p5.js 风格草图并切换到 p5 画布
+- 控制背景填充、清屏、播放、时间重置、输出宽度、帧数和延迟
+- 估算动画周期，生成更平滑的 GIF 循环
+- 把源码压缩为 UTF-16、报告 140 字符预算、验证往返一致性并反解代码
+- 单个 HTML 文件即可运行，无需构建步骤
 
-## Requirements
+## 前置条件
 
-- A current Chromium, Firefox, or Safari browser
-- Internet access for the pinned p5.js and gifenc CDN dependencies
-- Python 3 only if you prefer serving the page over HTTP
+- 当前版本的 Chromium、Firefox 或 Safari
+- 访问固定版本 p5.js 和 gifenc CDN 依赖的网络
+- 只有通过 HTTP 提供页面时才需要 Python 3
 
-## Run
+## 运行
 
-You can open `index.html` directly. A local HTTP server is more consistent across browser security policies:
+可以直接打开 `index.html`。考虑到浏览器安全策略，本地 HTTP 服务通常更稳定：
 
 ```bash
 python -m http.server 8000
 ```
 
-Then open `http://127.0.0.1:8000`.
+然后打开 `http://127.0.0.1:8000`。
 
-Paste a trusted snippet into the code editor and select **运行**. The default example demonstrates the p5.js path. Dwitter-style Canvas snippets execute without p5.js-specific setup.
+把可信代码粘贴到编辑器并选择“运行”。默认示例展示 p5.js 路径；Dwitter 风格 Canvas 代码无需额外配置。
 
-## Validate
+## 验证
 
-A basic manual smoke test is:
+基础人工冒烟测试：
 
-1. Open the page and confirm the default sketch produces visible pixels.
-2. Replace the code with `x.fillRect(0,0,100,100)` and confirm the Dwitter mode label appears.
-3. Select **压缩**, then **反解**, and confirm the status reports `反解一致`.
-4. Resize below 980 pixels and confirm the page becomes vertically scrollable.
-5. Export a short, low-resolution GIF and confirm the file is created.
+1. 打开页面，确认默认草图产生可见像素。
+2. 将代码替换为 `x.fillRect(0,0,100,100)`，确认出现 Dwitter 模式标识。
+3. 依次选择“压缩”和“反解”，确认状态显示“反解一致”。
+4. 将窗口缩小到 980 像素以下，确认页面可以纵向滚动。
+5. 导出短时长、低分辨率 GIF，确认文件生成成功。
 
-## Structure
+## 目录结构
 
 ```text
-index.html              UI, Canvas runner, p5.js bridge, GIF export, and UTF-16 tools
-THIRD_PARTY_NOTICES.md  External runtime dependencies and their licenses
-README.md               Usage, validation, and safety notes
+index.html              界面、Canvas 运行器、p5.js 桥接、GIF 导出和 UTF-16 工具
+THIRD_PARTY_NOTICES.md  外部运行时依赖及其许可证
+README.md               使用、验证与安全说明
 ```
 
-## Security and limitations
+## 安全与限制
 
-- The runner intentionally evaluates pasted JavaScript with `new Function`. Run only code you trust: a snippet can access the page, browser storage, and network APIs available to the page.
-- p5.js and gifenc load from pinned jsDelivr URLs at runtime. The page is not fully offline and inherits CDN availability and supply-chain risk.
-- Period detection is heuristic. Complex stateful or non-periodic sketches may need manual frame and delay settings.
-- GIF export is CPU- and memory-intensive at high resolution or frame counts.
-- UTF-16 packing uses legacy browser `escape`/`unescape` behavior for compatibility with the compact wrapper format.
-- No automated cross-browser suite is included; the publication copy is checked with a Chromium smoke test.
+- 运行器会使用 `new Function` 执行粘贴的 JavaScript。只运行可信代码；代码可以访问当前页面、浏览器存储和页面可用的网络 API。
+- p5.js 和 gifenc 运行时从固定 jsDelivr URL 加载。页面不是完全离线的，并继承 CDN 可用性和供应链风险。
+- 周期检测是启发式的；复杂、有状态或非周期草图可能需要手工设置帧数和延迟。
+- 高分辨率或高帧数 GIF 导出会消耗较多 CPU 和内存。
+- UTF-16 压缩为了兼容短代码封装格式，使用浏览器旧式 `escape`／`unescape` 行为。
+- 仓库没有自动化跨浏览器测试；公开副本通过 Chromium 冒烟测试。
 
-## Provenance
+## 来源
 
-The original Codex-assisted tool was created and refined on 2026-06-09. This is a clean publication copy of the completed HTML tool. Experimental screenshots, generated previews, helper scripts, temporary outputs, and the original task history are excluded.
+原始 Codex 辅助工具创建并完善于 2026-06-09。本仓库是完成版 HTML 工具的干净公开副本，已排除实验截图、生成预览、辅助脚本、临时输出和原始任务历史。
 
-The original source did not include an open-source license, so none has been added here.
+原始来源没有开源许可证，因此本仓库也没有新增许可证。
