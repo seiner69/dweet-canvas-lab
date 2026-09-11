@@ -532,6 +532,10 @@ draw=_=>{$[0]??createCanvas(540,540).background(0);$[600]?$=$.map(v=>[v.add(sin(
     }
 
     function packUtf16Source(source) {
+      // This byte-pair format is not a general Unicode codec.
+      if (/[^\t\n\r\x20-\x7e]/.test(source)) {
+        throw new Error("UTF-16 压缩仅支持可打印 ASCII、制表符和换行；中文、emoji 等请保留在源码区直接运行。");
+      }
       let padded = source;
       if (padded.length % 2) padded += " ";
       let packed = "";
@@ -558,12 +562,19 @@ draw=_=>{$[0]??createCanvas(540,540).background(0);$[600]?$=$.map(v=>[v.add(sin(
 
     function packCurrentCode() {
       const source = codeEl.value.trim();
-      const packed = packUtf16Source(source);
-      const wrapped = wrapPackedUtf16(packed);
-      const decoded = decodePackedCode(wrapped);
-      utf16Output.value = wrapped;
-      utf16Decoded.textContent = decoded;
-      updateUtf16Stat(source, packed, wrapped, decoded);
+      try {
+        const packed = packUtf16Source(source);
+        const wrapped = wrapPackedUtf16(packed);
+        const decoded = decodePackedCode(wrapped);
+        if (decoded.trimEnd() !== source) throw new Error("压缩往返校验失败，未生成可复制的压缩代码；原始源码已保留。");
+        utf16Output.value = wrapped;
+        utf16Decoded.textContent = decoded;
+        updateUtf16Stat(source, packed, wrapped, decoded);
+      } catch (err) {
+        utf16Output.value = "";
+        utf16Decoded.textContent = err.message;
+        utf16Stat.innerHTML = '<span class="pill bad">未生成压缩代码；源码仍可运行</span>';
+      }
     }
 
     function decodeUtf16Output() {
