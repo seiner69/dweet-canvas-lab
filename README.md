@@ -33,13 +33,13 @@ python -m http.server 8000
 
 ## 验证
 
-压缩逻辑的自动化回归测试需要 Node.js 20+（运行页面本身不需要 Node.js），无需安装 npm 依赖：
+压缩逻辑和运行器恢复行为的自动化回归测试需要 Node.js 20+（运行页面本身不需要 Node.js），无需安装 npm 依赖：
 
 ```bash
-node --test tests/utf16.test.cjs
+node --test tests/utf16.test.cjs tests/runner.test.cjs
 ```
 
-测试覆盖 ASCII 往返、Unicode／控制字符拒绝、清除过期输出与恢复，以及反解不执行输入代码。测试使用模拟 DOM，不替代真实浏览器或 GIF 导出验证。
+测试覆盖 ASCII 往返、Unicode／控制字符拒绝、清除过期输出与恢复，以及反解不执行输入代码；还检查编译失败后“继续”不会运行旧代码、修正代码后可恢复、清空编辑器后“运行”会切换为空代码。测试使用模拟 DOM，不替代真实浏览器或 GIF 导出验证。
 
 基础人工冒烟测试：
 
@@ -48,6 +48,7 @@ node --test tests/utf16.test.cjs
 3. 对 ASCII 源码依次选择“压缩”和“反解”，确认状态显示“反解一致”；加入中文或 emoji 后，应显示不支持提示并清空压缩输出，原始源码仍保留。
 4. 将窗口缩小到 980 像素以下，确认页面可以纵向滚动。
 5. 导出短时长、低分辨率 GIF，确认文件生成成功。
+6. 在可运行代码后输入 `const =`，确认报错；点“继续”仍应停止并报错。修正代码后点“运行”应恢复。清空编辑器并开启清屏后点“运行”，旧代码不应继续绘图。
 
 ## 目录结构
 
@@ -56,6 +57,7 @@ index.html              界面、Canvas 运行器、p5.js 桥接、GIF 导出和
 THIRD_PARTY_NOTICES.md  外部运行时依赖及其许可证
 README.md               使用、验证与安全说明
 tests/utf16.test.cjs     无外部依赖的压缩逻辑回归测试
+tests/runner.test.cjs    编译失败、修正和清空编辑器的恢复回归
 ```
 
 ## 安全与限制

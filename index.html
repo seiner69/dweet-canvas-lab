@@ -279,7 +279,7 @@ draw=_=>{$[0]??createCanvas(540,540).background(0);$[600]?$=$.map(v=>[v.add(sin(
     let p5Instance;
     let running = true;
     let start = performance.now();
-    let lastCode = "";
+    let lastCode = null;
 
     function setCanvasSize(canvas, width, height) {
       canvas.width = width;
@@ -481,8 +481,10 @@ draw=_=>{$[0]??createCanvas(540,540).background(0);$[600]?$=$.map(v=>[v.add(sin(
     function compile() {
       const code = codeEl.value.trim();
       if (code === lastCode && runner) return;
-      lastCode = code;
+      runner = null;
+      lastCode = null;
       runner = createRunner(c, x, code, () => performance.now() - start);
+      lastCode = code;
       errorEl.textContent = "";
       errorEl.className = "";
     }
@@ -508,7 +510,7 @@ draw=_=>{$[0]??createCanvas(540,540).background(0);$[600]?$=$.map(v=>[v.add(sin(
     }
 
     runBtn.onclick = () => {
-      lastCode = "";
+      lastCode = null;
       running = true;
       if (p5Instance) p5Instance.loop();
       pauseBtn.textContent = "暂停";
@@ -765,7 +767,7 @@ draw=_=>{$[0]??createCanvas(540,540).background(0);$[600]?$=$.map(v=>[v.add(sin(
 
     async function prepareP5ExportCanvas(code) {
       if (code !== lastCode || !p5Instance) {
-        lastCode = "";
+        lastCode = null;
         compile();
       }
       if (!p5Instance) throw new Error("p5 实例还没有准备好");
